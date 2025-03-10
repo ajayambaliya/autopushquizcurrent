@@ -1,0 +1,81 @@
+name: Random Daily Notification
+
+on:
+  schedule:
+    # Trigger every 10 minutes between 10 AM and 12 PM IST
+    - cron: '30 4 * * *'  # 10:00 AM IST
+    - cron: '40 4 * * *'  # 10:10 AM IST
+    - cron: '50 4 * * *'  # 10:20 AM IST
+    - cron: '0 5 * * *'   # 10:30 AM IST
+    - cron: '10 5 * * *'  # 10:40 AM IST
+    - cron: '20 5 * * *'  # 10:50 AM IST
+    - cron: '30 5 * * *'  # 11:00 AM IST
+    - cron: '40 5 * * *'  # 11:10 AM IST
+    - cron: '50 5 * * *'  # 11:20 AM IST
+    - cron: '0 6 * * *'   # 11:30 AM IST
+    - cron: '10 6 * * *'  # 11:40 AM IST
+    - cron: '20 6 * * *'  # 11:50 AM IST
+  
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  run-notification-script:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Random chance to run
+        id: random-chance
+        run: |
+          # Only run with ~8.33% probability (1/12 chance)
+          RANDOM_NUM=$(( RANDOM % 12 ))
+          if [[ $RANDOM_NUM -eq 0 ]]; then
+            echo "Should run this time? YES"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "Should run this time? NO (skipping)"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Checkout repository
+        if: steps.random-chance.outputs.should_run == 'true'
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        if: steps.random-chance.outputs.should_run == 'true'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        if: steps.random-chance.outputs.should_run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install mysql-connector-python firebase-admin python-dotenv
+      
+      - name: Create .env file
+        if: steps.random-chance.outputs.should_run == 'true'
+        run: |
+          cat > .env << 'EOL'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          FIREBASE_SERVICE_ACCOUNT_PATH=firebase-service-account.json
+          FCM_NOTIFICATION_TOPIC=${{ secrets.FCM_NOTIFICATION_TOPIC }}
+          EOL
+      
+      - name: Create Firebase service account file
+        if: steps.random-chance.outputs.should_run == 'true'
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > firebase-service-account.json
+      
+      - name: Execute notification script
+        if: steps.random-chance.outputs.should_run == 'true'
+        run: python ${{ github.workspace }}/notification_script.py
+        
+      - name: Log execution details
+        if: steps.random-chance.outputs.should_run == 'true'
+        run: |
+          echo "Script executed at $(date)"
+          echo "Scheduled time: ${{ github.event.schedule }}"
